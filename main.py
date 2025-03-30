@@ -1,6 +1,58 @@
 import requests
 from bs4 import BeautifulSoup
 import json
+import re
+
+
+def parse_curl_command(curl_command):
+    """
+    解析 cURL 命令，提取 cookies 和 user-agent（適配大小寫不敏感的 headers）
+    """
+    cookies = {}
+    user_agent = ""
+
+    # 正則提取所有 headers
+    headers = re.findall(r"-H '([^:]+): (.*?)'", curl_command)
+
+    # 將 headers 的鍵轉為小寫，以適配大小寫不敏感
+    headers_dict = {key.lower(): value for key, value in headers}
+
+    return headers_dict
+
+
+def get_multiline_input(prompt):
+    """
+    支援多行輸入，根據行尾的 '\' 自動判斷輸入是否結束
+    """
+    print(prompt)
+    lines = []
+    while True:
+        try:
+            line = input()
+            if line.endswith("\\"):
+                lines.append(line[:-1])  # 移除行尾的 '\' 並繼續下一行
+            else:
+                lines.append(line)
+                break  # 無 '\' 表示輸入結束
+        except EOFError:
+            break
+    return "".join(lines)
+
+
+# 提示使用者提供多行 cURL 命令
+curl_command = get_multiline_input(
+    "請先在 Chrome/Edge 手動開啟 https://www.iqvalue.com/Frontend/stock/shareholding?stockId=1102 並通過驗證，\n"
+    "然後開啟 Chrome/Edge 的開發者工具 (F12) 並重新整理網頁，\n"
+    "之後於 Network 分頁中右鍵點擊第一項請求，選擇 'Copy > Copy as cURL (bash)'，\n"
+    "然後將複製的命令貼上這裡並按下 ENTER："
+)
+
+# 解析 cURL 命令
+request_headers = parse_curl_command(curl_command)
+
+# 測試解析結果
+print("解析成功！以下是提取的資訊：")
+print(f"Headers: {request_headers}")
 
 # 獲取第一個公司ID資訊表
 company_info_url1 = "https://openapi.twse.com.tw/v1/opendata/t187ap03_L"
@@ -45,11 +97,11 @@ for idx, (company_id, company_name) in enumerate(company_id_name_map.items(), st
     # 使用統一的URL來查找公司資訊
     url = f"https://www.iqvalue.com/Frontend/stock/shareholding?stockId={company_id}"
 
-    # 發送GET請求獲取頁面內容
-    response = requests.get(url)
+    # 發送 GET 請求，帶入 headers 和 cookies
+    response = requests.get(url, headers=request_headers)
     response.encoding = 'utf-8'  # 手動設定編碼
 
-    # 使用Beautiful Soup解析HTML內容
+    # 使用 Beautiful Soup 解析 HTML 內容
     soup = BeautifulSoup(response.text, 'html.parser')
 
     # 找到包含董監事持股信息的表格
@@ -77,7 +129,7 @@ for idx, (company_id, company_name) in enumerate(company_id_name_map.items(), st
     except Exception as e:
         print(f"發生錯誤，跳過此公司 ({company_id}), error: {e}")
 
-# 將數據輸出為JSON文件
+# 將數據輸出為 JSON 文件
 output_file = 'all_companies_info.json'
 with open(output_file, 'w', encoding='utf-8') as json_file:
     json.dump(all_companies_data, json_file, ensure_ascii=False, indent=2)

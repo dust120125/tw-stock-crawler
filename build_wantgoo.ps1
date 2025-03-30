@@ -1,0 +1,1 @@
+pyinstaller --onefile --add-data ".venv\Lib\site-packages\selenium_stealth;selenium_stealth" main_wantgoo.py
